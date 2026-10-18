@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>ניהול - חפש את המטמון</title>
+<style>
+  :root{--sand:#f3e8d2; --card:#fffaf0; --ink:#2a2018; --muted:#7a6a55; --clay:#a8482a; --line:#d8c7a3; --err:#b3261e}
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--sand); color:var(--ink); font-family:"Heebo","Assistant","Segoe UI",system-ui,Arial,sans-serif}
+  .wrap{max-width:1000px; margin:0 auto; padding:18px 16px 60px}
+  h1{margin:0 0 12px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px}
+  input,button{font:inherit}
+  input[type=password]{padding:10px 12px; border:2px solid var(--line); border-radius:10px; min-width:220px}
+  button{padding:10px 16px; border:0; border-radius:10px; background:var(--clay); color:#fff; font-weight:700; cursor:pointer}
+  button[disabled]{opacity:.55}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .err{color:var(--err); font-weight:600}
+  .muted{color:var(--muted)}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px}
+  figure{margin:0; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  figure img{display:block; width:100%; height:150px; object-fit:cover; background:#efe3c8}
+  figcaption{padding:6px 8px; font-size:.8rem}
+  figcaption a{color:var(--clay); font-weight:700}
+  h2{margin:0 0 10px; font-size:1.15rem}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ניהול: התמונות של הקבוצות</h1>
+  <div class="card" id="login">
+    <div class="row">
+      <input id="pw" type="password" placeholder="סיסמת ניהול" autocomplete="current-password">
+      <button id="go" type="button">כניסה</button>
+    </div>
+    <p class="err" id="err" role="alert"></p>
+  </div>
+
+  <div id="main" class="hidden">
+    <div class="card row">
+      <span id="summary"></span>
+      <button id="reload" type="button">רענון</button>
+      <button id="zip" type="button">הורדת הכול כקובץ ZIP</button>
+      <span class="muted" id="zipMsg"></span>
+    </div>
+    <div id="tables"></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  var CFG = window.CONFIG || {};
+  var BASE = (CFG.SUPABASE_URL || "").replace(/\/+$/, "");
+  var password = "", rows = [];
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ var d=document.createElement("div"); d.textContent=(s==null?"":String(s)); return d.innerHTML; }
+  function url(path){ return BASE + "/storage/v1/object/public/photos/" + path; }
+  function hdrs(){
+    var h = { "apikey": CFG.SUPABASE_KEY, "Content-Type": "application/json" };
+    if (/^eyJ/.test(CFG.SUPABASE_KEY)) h["Authorization"] = "Bearer " + CFG.SUPABASE_KEY;
+    return h;
+  }
+  function load(){
+    $("err").textContent = "";
+    if (!BASE) { $("err").textContent = "קודם ממלאים את config.js (השרת עוד לא מחובר)."; return Promise.resolve(); }
+    return fetch(BASE + "/rest/v1/rpc/admin_list", { method:"POST", headers:hdrs(), body:JSON.stringify({ p_password: password }) })
+      .then(function(r){ return r.json().then(function(d){ if (!r.ok) throw new Error(d && d.message || "error"); return d; }); })
+      .then(function(d){ rows = d || []; $("login").classList.add("hidden"); $("main").classList.remove("hidden"); render(); })
+      .catch(function(e){ $("err").textContent = /unauthorized/.test(e.message) ? "סיסמה שגויה." : "שגיאה בטעינה: " + e.message; });
+  }
+  function render(){
+    var byTable = {};
+    rows.forEach(function(r){ (byTable[r.table_no] = byTable[r.table_no] || []).push(r); });
+    var nums = Object.keys(byTable).map(Number).sort(function(a,b){ return a-b; });
+    $("summary").textContent = nums.length + " שולחנות, " + rows.length + " תמונות";
+    $("tables").innerHTML = nums.map(function(n){
+      return '<section class="card"><h2>שולחן ' + n + '</h2><div class="grid">' +
+        byTable[n].map(function(r){
+          var t = new Date(r.created_at).toLocaleTimeString("he-IL", {hour:"2-digit", minute:"2-digit"});
+          return '<figure><a href="' + esc(url(r.path)) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(url(r.path)) + '" alt=""></a>' +
+                 '<figcaption>' + esc(r.station_title) + ' · ' + t + '<br><a href="' + esc(url(r.path)) + '" download>הורדה</a></figcaption></figure>';
+        }).join("") + '</div></section>';
+    }).join("") || '<p class="muted">עוד לא הועלו תמונות.</p>';
+  }
+  function zipAll(){
+    if (!window.JSZip) { $("zipMsg").textContent = "ספריית ה-ZIP לא נטענה. אפשר להוריד תמונות אחת-אחת."; return; }
+    var zip = new JSZip(), done = 0, btn = $("zip"); btn.disabled = true;
+    var counters = {};
+    var jobs = rows.map(function(r){
+      return fetch(url(r.path)).then(function(x){ if(!x.ok) throw new Error(x.status); return x.blob(); }).then(function(b){
+        var key = r.table_no + "/" + r.station_id; counters[key] = (counters[key]||0) + 1;
+        var ext = (r.path.split(".").pop() || "jpg");
+        zip.file("שולחן-" + r.table_no + "/" + r.station_id + "-" + counters[key] + "." + ext, b);
+        done++; $("zipMsg").textContent = done + " / " + rows.length;
+      });
+    });
+    Promise.all(jobs).then(function(){ return zip.generateAsync({type:"blob"}); }).then(function(blob){
+      var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "treasure-hunt-photos.zip"; a.click();
+      $("zipMsg").textContent = "מוכן!";
+    }).catch(function(e){ $("zipMsg").textContent = "שגיאה בהורדה: " + e.message; }).then(function(){ btn.disabled = false; });
+  }
+  $("go").onclick = function(){ password = $("pw").value; load(); };
+  $("pw").onkeydown = function(e){ if (e.key === "Enter") $("go").click(); };
+  $("reload").onclick = load;
+  $("zip").onclick = zipAll;
+})();
+</script>
+</body>
+</html>

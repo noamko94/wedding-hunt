@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#a8482a">
+<title>חפש את המטמון</title>
+<style>
+  :root{
+    --sand:#f3e8d2; --sand-2:#e8d9b9; --card:#fffaf0; --ink:#2a2018; --muted:#7a6a55;
+    --clay:#a8482a; --clay-d:#8a3a20; --olive:#55662f; --err:#b3261e; --line:#d8c7a3;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; min-height:100vh; color:var(--ink);
+    font-family:"Heebo","Assistant","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+    background:
+      radial-gradient(circle at 15% 0%, #fbf3e1 0, transparent 45%),
+      var(--sand);
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:480px; margin:0 auto; padding:18px 16px 40px}
+  header{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px}
+  .brand{font-weight:800; letter-spacing:.2px; color:var(--clay-d); font-size:1.05rem}
+  .badge{
+    background:var(--card); border:1px solid var(--line); border-radius:999px;
+    padding:6px 12px; font-size:.9rem; display:flex; gap:8px; align-items:center
+  }
+  .badge button{all:unset; color:var(--clay); font-weight:700; cursor:pointer; text-decoration:underline; min-height:24px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:20px 18px; box-shadow:0 2px 0 var(--sand-2), 0 10px 24px -14px rgba(60,40,10,.35);
+    margin-bottom:16px;
+  }
+  h1{font-size:1.55rem; line-height:1.25; margin:0 0 10px}
+  h2{font-size:1.2rem; margin:0 0 8px}
+  p{line-height:1.6; margin:0 0 12px}
+  .muted{color:var(--muted)}
+  label.field{display:block; font-weight:700; margin-bottom:8px}
+  input[type=number]{
+    width:100%; font:inherit; font-size:1.6rem; text-align:center; padding:12px;
+    border:2px solid var(--line); border-radius:14px; background:#fff; color:var(--ink)
+  }
+  input[type=number]:focus{outline:3px solid #e9b9a6; border-color:var(--clay)}
+  .btn{
+    display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    min-height:52px; padding:12px 16px; border:0; border-radius:14px;
+    font:inherit; font-weight:800; font-size:1.05rem; cursor:pointer;
+    background:var(--clay); color:#fff; text-align:center; user-select:none;
+  }
+  .btn:active{background:var(--clay-d)}
+  .btn[disabled]{opacity:.55; cursor:not-allowed}
+  .btn.alt{background:#fff; color:var(--clay-d); border:2px solid var(--clay)}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0}
+  .preview{display:block; width:100%; max-height:46vh; object-fit:contain; border-radius:12px; background:#efe3c8; margin:0 0 12px}
+  .status{min-height:1.4em; margin:10px 0 0; font-weight:600}
+  .status.err{color:var(--err)}
+  .bar{height:8px; background:var(--sand-2); border-radius:99px; overflow:hidden; margin-top:8px}
+  .bar > i{display:block; height:100%; width:0; background:var(--olive); transition:width .2s}
+  .clue{border:2px dashed var(--olive); background:#f6f8ea; border-radius:16px; padding:16px; margin:12px 0}
+  .clue .tag{font-size:.8rem; font-weight:800; color:var(--olive); letter-spacing:.5px}
+  .clue .txt{font-size:1.25rem; line-height:1.55; font-weight:700; margin-top:4px}
+  .digit{
+    display:inline-flex; align-items:center; justify-content:center; width:44px; height:52px;
+    border-radius:10px; background:var(--clay); color:#fff; font-weight:800; font-size:1.5rem;
+  }
+  .found{list-style:none; margin:0; padding:0}
+  .found li{display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line)}
+  .found li:first-child{border-top:0}
+  .found .t{flex:1; font-weight:700}
+  .found .c{font-size:.9rem; color:var(--muted); font-weight:400; display:block}
+  .hidden{display:none !important}
+  .demo{background:#fff3c4; border:1px solid #e3c65a; color:#6a5200; border-radius:12px; padding:8px 12px; font-size:.85rem; margin-bottom:12px}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">⛏ חפש את המטמון</div>
+    <div class="badge hidden" id="tableBadge"><span id="tableLabel"></span><button id="changeTable" type="button">החלפה</button></div>
+  </header>
+  <div class="demo hidden" id="demoNote">מצב הדגמה: שום דבר לא נשלח לשרת. מלאו את config.js כדי לחבר את המשחק.</div>
+  <main id="app"></main>
+</div>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var CFG = window.CONFIG || {};
+  var LIVE = !!(CFG.SUPABASE_URL && CFG.SUPABASE_KEY);
+  var BASE = (CFG.SUPABASE_URL || "").replace(/\/+$/, "");
+  var app = document.getElementById("app");
+  var stationId = (new URLSearchParams(location.search).get("s") || "").trim().toLowerCase();
+  var LS_TABLE = "th_table";
+  var memTable = null;
+
+  // ---------- עזרים ----------
+  function esc(s){ var d=document.createElement("div"); d.textContent=(s==null?"":String(s)); return d.innerHTML; }
+  function $(id){ return document.getElementById(id); }
+  function getTable(){
+    try { var v = parseInt(localStorage.getItem(LS_TABLE), 10); if (v) return v; } catch(e){}
+    return memTable;
+  }
+  function setTable(n){ memTable = n; try { if (n) localStorage.setItem(LS_TABLE, String(n)); else localStorage.removeItem(LS_TABLE); } catch(e){} }
+  function rand(){ return Math.random().toString(36).slice(2, 8); }
+
+  // ---------- שכבת שרת ----------
+  function authHeaders(){
+    var h = { "apikey": CFG.SUPABASE_KEY };
+    if (/^eyJ/.test(CFG.SUPABASE_KEY)) h["Authorization"] = "Bearer " + CFG.SUPABASE_KEY;
+    return h;
+  }
+  function rpc(name, args){
+    var h = authHeaders(); h["Content-Type"] = "application/json";
+    return fetch(BASE + "/rest/v1/rpc/" + name, { method:"POST", headers:h, body:JSON.stringify(args) })
+      .then(function(r){
+        return r.text().then(function(t){
+          var data = null; try { data = t ? JSON.parse(t) : null; } catch(e){}
+          if (!r.ok) { var err = new Error((data && (data.message||data.hint)) || ("HTTP "+r.status)); err.status = r.status; throw err; }
+          return data;
+        });
+      });
+  }
+  function uploadLive(path, blob, onProgress){
+    return new Promise(function(resolve, reject){
+      var x = new XMLHttpRequest();
+      x.open("POST", BASE + "/storage/v1/object/photos/" + path);
+      var h = authHeaders(); for (var k in h) x.setRequestHeader(k, h[k]);
+      x.setRequestHeader("Content-Type", blob.type || "image/jpeg");
+      x.setRequestHeader("x-upsert", "false");
+      x.timeout = 90000;
+      x.upload.onprogress = function(e){ if (e.lengthComputable) onProgress(e.loaded / e.total); };
+      x.onload = function(){ (x.status >= 200 && x.status < 300) ? resolve() : reject(new Error("upload " + x.status)); };
+      x.onerror = function(){ reject(new Error("network")); };
+      x.ontimeout = function(){ reject(new Error("timeout")); };
+      x.send(blob);
+    });
+  }
+
+  var DEMO_STATIONS = {
+    proposal: {
+      id:"proposal", title:"הצעת הנישואין",
+      task:"שחזרו כקבוצה את הצעת הנישואין הדרמטית של מוניקה וצ׳נדלר. מי מכם כורע ברך, מי מתרגש ומי מצלם? צלמו תמונה קבוצתית אחת ועלו אותה.",
+      clue:"הממצא הבא קבור בין השורשים. חפשו מתחת לעץ הזית הגדול בגינה.", digit:"7"
+    }
+  };
+  function demoKey(t){ return "th_demo_" + t; }
+  function demoState(t){ try { return JSON.parse(localStorage.getItem(demoKey(t)) || "[]"); } catch(e){ return []; } }
+
+  var backend = LIVE ? {
+    getStation: function(id){ return rpc("get_station", { p_station:id }).then(function(r){ return (r && r[0]) || null; }); },
+    getState: function(t){ return rpc("get_state", { p_table:t }).then(function(r){ return r || []; }); },
+    upload: uploadLive,
+    complete: function(t, s, p){ return rpc("complete_task", { p_table:t, p_station:s, p_path:p }); }
+  } : {
+    getStation: function(id){ var s = DEMO_STATIONS[id]; return Promise.resolve(s ? {id:s.id,title:s.title,task:s.task} : null); },
+    getState: function(t){ return Promise.resolve(demoState(t)); },
+    upload: function(path, blob, onProgress){
+      return new Promise(function(res){ var p=0; var iv=setInterval(function(){ p+=.25; onProgress(Math.min(p,1)); if(p>=1){clearInterval(iv); res();} }, 150); });
+    },
+    complete: function(t, s){
+      var st = DEMO_STATIONS[s]; var list = demoState(t);
+      var row = { station_id:s, title:st.title, clue:st.clue, digit:st.digit };
+      if (!list.some(function(x){ return x.station_id===s; })) list.push(row);
+      try { localStorage.setItem(demoKey(t), JSON.stringify(list)); } catch(e){}
+      return Promise.resolve(row);
+    }
+  };
+
+  // ---------- כיווץ תמונה (חוסך אחסון ומהיר יותר בסלולר) ----------
+  function compress(file){
+    var MAX = 1600;
+    function fromBitmap(bmp){
+      var w = bmp.width, h = bmp.height, sc = Math.min(1, MAX / Math.max(w, h));
+      var c = document.createElement("canvas"); c.width = Math.round(w*sc); c.height = Math.round(h*sc);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      return new Promise(function(res, rej){ c.toBlob(function(b){ b ? res(b) : rej(new Error("toBlob")); }, "image/jpeg", 0.82); });
+    }
+    var p;
+    if (window.createImageBitmap) {
+      p = createImageBitmap(file, { imageOrientation: "from-image" }).catch(function(){ return createImageBitmap(file); }).then(fromBitmap);
+    } else {
+      p = new Promise(function(res, rej){
+        var img = new Image(), url = URL.createObjectURL(file);
+        img.onload = function(){ fromBitmap(img).then(function(b){ URL.revokeObjectURL(url); res(b); }, rej); };
+        img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error("decode")); };
+        img.src = url;
+      });
+    }
+    // אם הדפדפן לא מצליח לפענח, שולחים את הקובץ המקורי (עד 8MB)
+    return p.catch(function(){ if (file.size <= 8*1024*1024) return file; throw new Error("too_big"); });
+  }
+  function extFor(blob){ var t = blob.type || ""; if (/png/.test(t)) return "png"; if (/webp/.test(t)) return "webp"; if (/hei/.test(t)) return "heic"; return "jpg"; }
+
+  // ---------- מסכים ----------
+  function updateBadge(){
+    var t = getTable();
+    $("tableBadge").classList.toggle("hidden", !t);
+    if (t) $("tableLabel").textContent = "שולחן " + t;
+  }
+
+  function renderTableEntry(){
+    updateBadge();
+    app.innerHTML =
+      '<section class="card">' +
+        '<h1>ברוכים הבאים, ארכאולוגים!</h1>' +
+        '<p>נציג אחד מכל שולחן מזין את מספר השולחן וממשיך עם הטלפון שלו לאורך כל המשחק.</p>' +
+        '<label class="field" for="tn">מספר השולחן שלכם</label>' +
+        '<input id="tn" type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="300" autocomplete="off">' +
+        '<p class="status err" id="tnErr" role="alert"></p>' +
+        '<button class="btn" id="tnGo" type="button">יוצאים לדרך</button>' +
+      '</section>';
+    function go(){
+      var n = parseInt($("tn").value, 10);
+      if (!n || n < 1 || n > 300) { $("tnErr").textContent = "הכניסו מספר שולחן בין 1 ל-300."; return; }
+      setTable(n); route();
+    }
+    $("tnGo").onclick = go;
+    $("tn").onkeydown = function(e){ if (e.key === "Enter") go(); };
+  }
+
+  function foundList(state){
+    if (!state.length) return "";
+    return '<section class="card"><h2>הממצאים שלכם עד כה</h2><ul class="found">' +
+      state.map(function(s){
+        return '<li><span class="digit" aria-label="ספרה">' + esc(s.digit || "•") + '</span>' +
+               '<span class="t">' + esc(s.title) + '<span class="c">' + esc(s.clue) + '</span></span></li>';
+      }).join("") + '</ul></section>';
+  }
+
+  function clueCard(row){
+    return '<div class="clue"><div class="tag">הרמז הבא</div><div class="txt">' + esc(row.clue) + '</div></div>' +
+      (row.digit ? '<p>ספרה לקוד התיבה: <span class="digit">' + esc(row.digit) + '</span></p><p class="muted">רשמו אותה, תצטרכו אותה בסוף.</p>' : '');
+  }
+
+  function renderHome(table, state){
+    updateBadge();
+    app.innerHTML =
+      '<section class="card"><h1>מוכנים לחפירה?</h1>' +
+      '<p>סרקו את קוד ה-QR בתחנה הבאה כדי להמשיך. כל קוד פותח משימה חדשה.</p></section>' + foundList(state);
+  }
+
+  function renderStation(table, st, state){
+    updateBadge();
+    var done = null;
+    state.forEach(function(s){ if (s.station_id === st.id) done = s; });
+    if (done) {
+      app.innerHTML =
+        '<section class="card"><h1>' + esc(st.title) + '</h1><p><strong>המשימה הושלמה! </strong></p>' + clueCard(done) + '</section>' + foundList(state);
+      return;
+    }
+
+    app.innerHTML =
+      '<section class="card"><h1>' + esc(st.title) + '</h1><p>' + esc(st.task) + '</p>' +
+        '<img id="pv" class="preview hidden" alt="תצוגה מקדימה של התמונה">' +
+        '<div class="row" id="pick">' +
+          '<label class="btn alt" for="fCam">📷 צילום</label>' +
+          '<label class="btn alt" for="fGal">🖼 מהגלריה</label>' +
+        '</div>' +
+        '<input id="fCam" type="file" accept="image/*" capture="environment">' +
+        '<input id="fGal" type="file" accept="image/*">' +
+        '<button class="btn" id="send" type="button" disabled>העלאת התמונה</button>' +
+        '<div class="bar hidden" id="bar"><i id="barI"></i></div>' +
+        '<p class="status" id="msg" role="status" aria-live="polite"></p>' +
+      '</section>' + foundList(state);
+
+    var blob = null, uploadedPath = null, busy = false;
+    function setMsg(t, err){ var m = $("msg"); m.textContent = t || ""; m.className = "status" + (err ? " err" : ""); }
+    function setBar(p){ $("bar").classList.toggle("hidden", p == null); if (p != null) $("barI").style.width = Math.round(p*100) + "%"; }
+
+    function onPick(e){
+      var f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!f) return;
+      blob = null; uploadedPath = null; $("send").disabled = true; setMsg("מכווצים את התמונה…");
+      compress(f).then(function(b){
+        blob = b;
+        var pv = $("pv"); pv.src = URL.createObjectURL(b); pv.classList.remove("hidden");
+        $("send").disabled = false; setMsg("");
+      }).catch(function(){ setMsg("לא הצלחנו לקרוא את התמונה. נסו תמונה אחרת.", true); });
+    }
+    $("fCam").onchange = onPick; $("fGal").onchange = onPick;
+
+    $("send").onclick = function(){
+      if (busy || !blob) return;
+      busy = true; $("send").disabled = true; setMsg("מעלים…"); setBar(0);
+      var path = uploadedPath;
+      var step = path ? Promise.resolve() : (function(){
+        path = "t" + table + "/" + st.id + "/" + Date.now() + "-" + rand() + "." + extFor(blob);
+        return backend.upload(path, blob, function(p){ setBar(p); setMsg("מעלים… " + Math.round(p*100) + "%"); })
+          .then(function(){ uploadedPath = path; });
+      })();
+      step.then(function(){ setMsg("שומרים…"); return backend.complete(table, st.id, path); })
+        .then(function(row){
+          return backend.getState(table).then(function(fresh){ renderStation(table, st, fresh); }, function(){
+            renderStation(table, st, [{station_id:st.id,title:row.title,clue:row.clue,digit:row.digit}]);
+          });
+        })
+        .catch(function(err){
+          busy = false; setBar(null); $("send").disabled = false;
+          $("send").textContent = "ניסיון נוסף";
+          setMsg("ההעלאה לא הצליחה, והרמז עדיין נעול. בדקו חיבור לאינטרנט ולחצו על ניסיון נוסף.", true);
+        });
+    };
+  }
+
+  function route(){
+    var table = getTable();
+    if (!table) { renderTableEntry(); return; }
+    updateBadge();
+    app.innerHTML = '<section class="card"><p class="muted">טוענים…</p></section>';
+    backend.getState(table).then(function(state){
+      if (!stationId) { renderHome(table, state); return; }
+      return backend.getStation(stationId).then(function(st){
+        if (!st) {
+          app.innerHTML = '<section class="card"><h1>קוד לא מוכר</h1><p>הקוד שסרקתם לא מוכר. נסו לסרוק שוב.</p></section>' + foundList(state);
+          return;
+        }
+        renderStation(table, st, state);
+      });
+    }).catch(function(){
+      app.innerHTML = '<section class="card"><h1>אין חיבור</h1><p>לא הצלחנו להתחבר לשרת. בדקו חיבור לאינטרנט ונסו שוב.</p>' +
+        '<button class="btn" id="retry" type="button">נסו שוב</button></section>';
+      $("retry").onclick = route;
+    });
+  }
+
+  $("changeTable").onclick = function(){
+    if (confirm("להחליף מספר שולחן? ההתקדמות של השולחן הנוכחי נשמרת, ואפשר לחזור אליו.")) { setTable(null); renderTableEntry(); }
+  };
+  if (!LIVE) $("demoNote").classList.remove("hidden");
+  route();
+})();
+</script>
+</body>
+</html>
