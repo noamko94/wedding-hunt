@@ -4,33 +4,41 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>ניהול - חפש את המטמון</title>
+<title>ניהול - האוצר של נועם ויותם</title>
 <style>
-  :root{--sand:#f3e8d2; --card:#fffaf0; --ink:#2a2018; --muted:#7a6a55; --clay:#a8482a; --line:#d8c7a3; --err:#b3261e}
+  :root{--sand:#f3e8d2; --card:#fffaf0; --ink:#2a2018; --muted:#6f6048; --clay:#a8482a; --line:#d8c7a3; --err:#b3261e; --ok:#55662f}
   *{box-sizing:border-box}
   body{margin:0; background:var(--sand); color:var(--ink); font-family:"Heebo","Assistant","Segoe UI",system-ui,Arial,sans-serif}
   .wrap{max-width:1000px; margin:0 auto; padding:18px 16px 60px}
-  h1{margin:0 0 12px}
+  h1{margin:0 0 12px; font-size:1.4rem}
+  h2{margin:0 0 10px; font-size:1.1rem}
   .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px}
-  input,button{font:inherit}
-  input[type=password]{padding:10px 12px; border:2px solid var(--line); border-radius:10px; min-width:220px}
+  input,button,select{font:inherit}
+  input[type=password],input[type=text],select{padding:10px 12px; border:2px solid var(--line); border-radius:10px; background:#fff; color:var(--ink)}
+  input[type=text]{width:100%}
   button{padding:10px 16px; border:0; border-radius:10px; background:var(--clay); color:#fff; font-weight:700; cursor:pointer}
+  button.alt{background:#fff; color:var(--clay); border:2px solid var(--clay)}
   button[disabled]{opacity:.55}
   .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
   .err{color:var(--err); font-weight:600}
+  .ok{color:var(--ok); font-weight:600}
   .muted{color:var(--muted)}
+  table{border-collapse:collapse; width:100%}
+  th,td{text-align:right; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle}
+  .tablewrap{overflow-x:auto}
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px}
   figure{margin:0; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden}
   figure img{display:block; width:100%; height:150px; object-fit:cover; background:#efe3c8}
   figcaption{padding:6px 8px; font-size:.8rem}
   figcaption a{color:var(--clay); font-weight:700}
-  h2{margin:0 0 10px; font-size:1.15rem}
   .hidden{display:none}
+  label{font-weight:700; display:block; margin:10px 0 6px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>ניהול: התמונות של הקבוצות</h1>
+  <h1>ניהול: האוצר של נועם ויותם</h1>
+
   <div class="card" id="login">
     <div class="row">
       <input id="pw" type="password" placeholder="סיסמת ניהול" autocomplete="current-password">
@@ -41,12 +49,30 @@
 
   <div id="main" class="hidden">
     <div class="card row">
-      <span id="summary"></span>
       <button id="reload" type="button">רענון</button>
-      <button id="zip" type="button">הורדת הכול כקובץ ZIP</button>
+      <button id="zip" type="button" class="alt">הורדת כל התמונות כ-ZIP</button>
       <span class="muted" id="zipMsg"></span>
     </div>
-    <div id="tables"></div>
+
+    <div class="card">
+      <h2>הגדרות המשחק</h2>
+      <label for="box">מיקום התיבה (מופיע לקבוצות שפתרו את הקוד: "גשו ל־...")</label>
+      <input id="box" type="text" placeholder="למשל: הגזיבו שבגינה">
+      <label for="closeup">נתיב תמונת התקריב (למשל: img/m3-7f2a.jpg)</label>
+      <input id="closeup" type="text" placeholder="img/..." dir="ltr">
+      <div class="row" style="margin-top:12px"><button id="saveSet" type="button">שמירת הגדרות</button><span id="setMsg"></span></div>
+    </div>
+
+    <div class="card">
+      <h2>הקבוצות</h2>
+      <div class="tablewrap"><table>
+        <thead><tr><th>שולחן</th><th>שם</th><th>איפה הן עכשיו</th><th>עדכון אחרון</th><th>העברת שלב</th><th></th></tr></thead>
+        <tbody id="teams"></tbody>
+      </table></div>
+      <p class="muted">העברת שלב וחוסר באיפוס נועדו למקרי תקלה בלבד. מחיקת קבוצה מאפשרת לה להירשם מחדש, והתמונות שלה נמחקות מהרשימה.</p>
+    </div>
+
+    <div id="photos"></div>
   </div>
 </div>
 
@@ -57,7 +83,8 @@
   "use strict";
   var CFG = window.CONFIG || {};
   var BASE = (CFG.SUPABASE_URL || "").replace(/\/+$/, "");
-  var password = "", rows = [];
+  var password = "", data = {teams: [], photos: []};
+  var STAGES = ["משימה 1 (שאלון)", "משימה 2 (כתב קדום)", "מחפשים את האחים", "משימה 3 א׳ (זיהוי עמדה)", "משימה 3 ב׳ (תמונה וקוד)", "משימה 4 (שלוש תמונות)", "הגיעו לתיבה"];
   function $(id){ return document.getElementById(id); }
   function esc(s){ var d=document.createElement("div"); d.textContent=(s==null?"":String(s)); return d.innerHTML; }
   function url(path){ return BASE + "/storage/v1/object/public/photos/" + path; }
@@ -66,38 +93,66 @@
     if (/^eyJ/.test(CFG.SUPABASE_KEY)) h["Authorization"] = "Bearer " + CFG.SUPABASE_KEY;
     return h;
   }
+  function rpc(name, args){
+    var a = { p_password: password }; for (var k in (args||{})) a[k] = args[k];
+    return fetch(BASE + "/rest/v1/rpc/" + name, { method:"POST", headers:hdrs(), body:JSON.stringify(a) })
+      .then(function(r){ return r.json().then(function(d){ if (!r.ok) throw new Error(d && d.message || "error"); return d; }); });
+  }
+  function fmt(t){ return t ? new Date(t).toLocaleTimeString("he-IL", {hour:"2-digit", minute:"2-digit"}) : ""; }
+
   function load(){
     $("err").textContent = "";
-    if (!BASE) { $("err").textContent = "קודם ממלאים את config.js (השרת עוד לא מחובר)."; return Promise.resolve(); }
-    return fetch(BASE + "/rest/v1/rpc/admin_list", { method:"POST", headers:hdrs(), body:JSON.stringify({ p_password: password }) })
-      .then(function(r){ return r.json().then(function(d){ if (!r.ok) throw new Error(d && d.message || "error"); return d; }); })
-      .then(function(d){ rows = d || []; $("login").classList.add("hidden"); $("main").classList.remove("hidden"); render(); })
-      .catch(function(e){ $("err").textContent = /unauthorized/.test(e.message) ? "סיסמה שגויה." : "שגיאה בטעינה: " + e.message; });
+    if (!BASE) { $("err").textContent = "קודם ממלאים את config.js."; return Promise.resolve(); }
+    return Promise.all([rpc("admin_overview"), rpc("admin_get_settings")]).then(function(r){
+      data = r[0]; var st = r[1] || {};
+      $("login").classList.add("hidden"); $("main").classList.remove("hidden");
+      if (document.activeElement !== $("box")) $("box").value = st.box_location || "";
+      if (document.activeElement !== $("closeup")) $("closeup").value = st.closeup_image || "";
+      render();
+    }).catch(function(e){ $("err").textContent = /unauthorized/.test(e.message) ? "סיסמה שגויה." : "שגיאה בטעינה: " + e.message; });
   }
+
   function render(){
-    var byTable = {};
-    rows.forEach(function(r){ (byTable[r.table_no] = byTable[r.table_no] || []).push(r); });
-    var nums = Object.keys(byTable).map(Number).sort(function(a,b){ return a-b; });
-    $("summary").textContent = nums.length + " שולחנות, " + rows.length + " תמונות";
-    $("tables").innerHTML = nums.map(function(n){
-      return '<section class="card"><h2>שולחן ' + n + '</h2><div class="grid">' +
-        byTable[n].map(function(r){
-          var t = new Date(r.created_at).toLocaleTimeString("he-IL", {hour:"2-digit", minute:"2-digit"});
-          return '<figure><a href="' + esc(url(r.path)) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(url(r.path)) + '" alt=""></a>' +
-                 '<figcaption>' + esc(r.station_title) + ' · ' + t + '<br><a href="' + esc(url(r.path)) + '" download>הורדה</a></figcaption></figure>';
+    $("teams").innerHTML = data.teams.map(function(t){
+      var opts = STAGES.map(function(s,i){ return '<option value="'+i+'"'+(i===t.stage?' selected':'')+'>'+esc(s)+'</option>'; }).join("");
+      return '<tr><td><b>'+t.table_no+'</b></td><td>'+esc(t.team_name||"")+'</td><td>'+esc(STAGES[t.stage])+(t.final_at?' ('+fmt(t.final_at)+')':'')+'</td><td>'+fmt(t.updated_at)+'</td>'+
+        '<td><select data-t="'+t.table_no+'" class="stageSel">'+opts+'</select></td>'+
+        '<td><button class="alt delBtn" data-t="'+t.table_no+'" type="button">מחיקה</button></td></tr>';
+    }).join("") || '<tr><td colspan="6" class="muted">עוד אין קבוצות.</td></tr>';
+    Array.prototype.forEach.call(document.querySelectorAll(".stageSel"), function(el){
+      el.onchange = function(){
+        if (!confirm("להעביר את שולחן " + el.dataset.t + " לשלב: " + STAGES[el.value] + "?")) { load(); return; }
+        rpc("admin_set_stage", {p_table: +el.dataset.t, p_stage: +el.value}).then(load).catch(function(e){ alert(e.message); });
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".delBtn"), function(el){
+      el.onclick = function(){
+        if (!confirm("למחוק את שולחן " + el.dataset.t + "? זה מוחק את ההתקדמות ואת רשימת התמונות שלו.")) return;
+        rpc("admin_delete_team", {p_table: +el.dataset.t}).then(load).catch(function(e){ alert(e.message); });
+      };
+    });
+    var by = {}; data.photos.forEach(function(r){ (by[r.table_no] = by[r.table_no] || []).push(r); });
+    var nums = Object.keys(by).map(Number).sort(function(a,b){ return a-b; });
+    $("photos").innerHTML = nums.map(function(n){
+      return '<section class="card"><h2>שולחן ' + n + (by[n][0].team_name ? ' · ' + esc(by[n][0].team_name) : '') + '</h2><div class="grid">' +
+        by[n].map(function(r){
+          return '<figure><a href="'+esc(url(r.path))+'" target="_blank" rel="noopener"><img loading="lazy" src="'+esc(url(r.path))+'" alt=""></a>' +
+                 '<figcaption>'+fmt(r.created_at)+' · <a href="'+esc(url(r.path))+'" download>הורדה</a></figcaption></figure>';
         }).join("") + '</div></section>';
-    }).join("") || '<p class="muted">עוד לא הועלו תמונות.</p>';
+    }).join("") || '<div class="card muted">עוד לא הועלו תמונות.</div>';
   }
+
   function zipAll(){
     if (!window.JSZip) { $("zipMsg").textContent = "ספריית ה-ZIP לא נטענה. אפשר להוריד תמונות אחת-אחת."; return; }
     var zip = new JSZip(), done = 0, btn = $("zip"); btn.disabled = true;
     var counters = {};
-    var jobs = rows.map(function(r){
+    var jobs = data.photos.map(function(r){
       return fetch(url(r.path)).then(function(x){ if(!x.ok) throw new Error(x.status); return x.blob(); }).then(function(b){
-        var key = r.table_no + "/" + r.station_id; counters[key] = (counters[key]||0) + 1;
+        counters[r.table_no] = (counters[r.table_no]||0) + 1;
         var ext = (r.path.split(".").pop() || "jpg");
-        zip.file("שולחן-" + r.table_no + "/" + r.station_id + "-" + counters[key] + "." + ext, b);
-        done++; $("zipMsg").textContent = done + " / " + rows.length;
+        var nm = "שולחן-" + r.table_no + (r.team_name ? "-" + r.team_name.replace(/[\\\/:*?"<>|]/g,"") : "");
+        zip.file(nm + "/" + counters[r.table_no] + "." + ext, b);
+        done++; $("zipMsg").textContent = done + " / " + data.photos.length;
       });
     });
     Promise.all(jobs).then(function(){ return zip.generateAsync({type:"blob"}); }).then(function(blob){
@@ -105,6 +160,14 @@
       $("zipMsg").textContent = "מוכן!";
     }).catch(function(e){ $("zipMsg").textContent = "שגיאה בהורדה: " + e.message; }).then(function(){ btn.disabled = false; });
   }
+
+  $("saveSet").onclick = function(){
+    $("setMsg").textContent = "שומר…"; $("setMsg").className = "";
+    Promise.all([rpc("admin_set_setting", {p_key:"box_location", p_value:$("box").value.trim()}),
+                 rpc("admin_set_setting", {p_key:"closeup_image", p_value:$("closeup").value.trim()})])
+      .then(function(){ $("setMsg").textContent = "נשמר ✓"; $("setMsg").className = "ok"; })
+      .catch(function(e){ $("setMsg").textContent = "שגיאה: " + e.message; $("setMsg").className = "err"; });
+  };
   $("go").onclick = function(){ password = $("pw").value; load(); };
   $("pw").onkeydown = function(e){ if (e.key === "Enter") $("go").click(); };
   $("reload").onclick = load;
