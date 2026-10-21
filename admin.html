@@ -56,11 +56,19 @@
 
     <div class="card">
       <h2>הגדרות המשחק</h2>
-      <label for="box">מיקום התיבה (מופיע לקבוצות שפתרו את הקוד: "גשו ל־...")</label>
-      <input id="box" type="text" placeholder="למשל: הגזיבו שבגינה">
+      <label for="box">הרמז למיקום התיבה (הטקסט שמופיע לקבוצות שפתרו את הקוד)</label>
+      <input id="box" type="text" placeholder="הטקסט המלא של הרמז">
       <label for="closeup">נתיב תמונת התקריב (למשל: img/m3-7f2a.jpg)</label>
       <input id="closeup" type="text" placeholder="img/..." dir="ltr">
       <div class="row" style="margin-top:12px"><button id="saveSet" type="button">שמירת הגדרות</button><span id="setMsg"></span></div>
+    </div>
+
+    <div class="card">
+      <h2>סיום המשחק</h2>
+      <p id="gameState" class="muted"></p>
+      <p>הקישור שבברקוד שבתוך התיבה (הקבוצה שפותחת את התיבה סורקת אותו, ושאר הקבוצות מקבלות התרעה שהמשחק נגמר):</p>
+      <input type="text" id="winLink" readonly dir="ltr" onclick="this.select()">
+      <div class="row" style="margin-top:12px"><button id="resetGame" type="button" class="alt">איפוס סיום המשחק (לבדיקות)</button><span id="resetMsg"></span></div>
     </div>
 
     <div class="card">
@@ -108,10 +116,19 @@
       $("login").classList.add("hidden"); $("main").classList.remove("hidden");
       if (document.activeElement !== $("box")) $("box").value = st.box_location || "";
       if (document.activeElement !== $("closeup")) $("closeup").value = st.closeup_image || "";
+      var base = location.origin + location.pathname.replace(/[^\/]*$/, "");
+      $("winLink").value = st.winner_code ? base + "?w=" + st.winner_code : "";
+      gameStatus();
       render();
     }).catch(function(e){ $("err").textContent = /unauthorized/.test(e.message) ? "סיסמה שגויה." : "שגיאה בטעינה: " + e.message; });
   }
 
+  function gameStatus(){
+    return fetch(BASE + "/rest/v1/rpc/get_game_status", { method:"POST", headers:hdrs(), body:"{}" })
+      .then(function(r){ return r.json(); }).then(function(g){
+        $("gameState").textContent = g && g.ended ? ("המשחק הסתיים. הקבוצה המנצחת: שולחן " + g.winner_table + (g.winner_name ? " (" + g.winner_name + ")" : "") + ".") : "המשחק עדיין פעיל.";
+      }).catch(function(){});
+  }
   function render(){
     $("teams").innerHTML = data.teams.map(function(t){
       var opts = STAGES.map(function(s,i){ return '<option value="'+i+'"'+(i===t.stage?' selected':'')+'>'+esc(s)+'</option>'; }).join("");
@@ -167,6 +184,10 @@
                  rpc("admin_set_setting", {p_key:"closeup_image", p_value:$("closeup").value.trim()})])
       .then(function(){ $("setMsg").textContent = "נשמר ✓"; $("setMsg").className = "ok"; })
       .catch(function(e){ $("setMsg").textContent = "שגיאה: " + e.message; $("setMsg").className = "err"; });
+  };
+  $("resetGame").onclick = function(){
+    if (!confirm("לאפס את סיום המשחק? קבוצות שכבר ראו את ההתרעה ימשיכו לראות אותה עד שירעננו את הדף.")) return;
+    rpc("admin_reset_game").then(function(){ $("resetMsg").textContent = "אופס ✓"; gameStatus(); }).catch(function(e){ $("resetMsg").textContent = "שגיאה: " + e.message; });
   };
   $("go").onclick = function(){ password = $("pw").value; load(); };
   $("pw").onkeydown = function(e){ if (e.key === "Enter") $("go").click(); };

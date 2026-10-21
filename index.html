@@ -64,11 +64,15 @@
   .digits{display:flex; gap:10px; direction:rtl; margin:8px 0}
   .digits > div{flex:1; text-align:center}
   .digits label{display:block; font-weight:700; margin-bottom:6px}
-  .digits input{text-align:center; font-size:1.8rem; padding:12px 4px}
+  .digits input{text-align:center; font-size:1.8rem; padding:12px 2px}
+  .digits label{font-size:.9rem}
   .lightbox{position:fixed; inset:0; z-index:50; background:rgba(20,12,4,.92); overflow:auto; -webkit-overflow-scrolling:touch; padding:56px 12px 24px}
   .lightbox .close{position:fixed; top:calc(10px + env(safe-area-inset-top)); left:12px; z-index:51; min-height:44px; width:auto; padding:8px 18px; margin:0}
   .lightbox img{display:block; width:100%; max-width:900px; margin:0 auto; border-radius:8px}
   .lightbox .sheet{background:var(--card); border-radius:14px; padding:12px; max-width:700px; margin:0 auto}
+  .banner{background:#fff3c4; border:1px solid #e3c65a; color:#5a4500; border-radius:12px; padding:10px 14px; margin-bottom:12px; font-weight:700; line-height:1.5}
+  .over{position:fixed; inset:0; z-index:60; background:rgba(42,32,24,.94); display:flex; align-items:center; justify-content:center; padding:20px}
+  .over .card{max-width:420px; margin:0; text-align:center}
   .hidden{display:none !important}
   .note{background:#f6f8ea; border:1px dashed var(--olive); border-radius:14px; padding:12px 14px; margin:14px 0}
   input[type=file]{display:none}
@@ -80,9 +84,11 @@
     <div class="brand">🗝 האוצר של נועם ויותם</div>
     <div class="bar hidden" id="bar"><span class="pill" id="teamPill"></span><span class="pill" id="stepPill"></span></div>
   </header>
+  <div class="banner hidden" id="endBanner" role="status"></div>
   <main id="app" aria-live="polite"></main>
 </div>
 <div id="lb" class="lightbox hidden" role="dialog" aria-modal="true"></div>
+<div id="over" class="over hidden" role="alertdialog" aria-modal="true"></div>
 
 <script src="config.js"></script>
 <script src="paleo.js"></script>
@@ -95,6 +101,8 @@
   var KEY = CFG.SUPABASE_KEY || "";
   var app = document.getElementById("app");
   var SCAN = (new URLSearchParams(location.search).get("s") || "").toLowerCase() === "siblings";
+  var WCODE = new URLSearchParams(location.search).get("w") || "";
+  var POLL_MS = CFG.POLL_MS || 30000;
   var LS = "th_auth_v2";
 
   var auth = null;      // {table, token, upload_key}
@@ -519,51 +527,106 @@
 
   // ---------- משימה 4 ----------
   function renderPhotos(){
-    var d = S.digits || ["", "", ""];
+    var d = S.digits || ["", "", "", ""];
     function f(i, label){
       return '<div><label for="d' + i + '">' + label + '</label>' +
         '<input id="d' + i + '" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" value="' + esc(d[i - 1] || "") + '"></div>';
     }
     show(
       '<section class="card">' +
-        '<h1>משימה 4 — שלוש תמונות, שלושה מספרים</h1>' +
-        '<p>שלוש תמונות שלנו מפוזרות ברחבי המתחם.</p>' +
-        '<p>ליד כל תמונה תמצאו אות וספרה. מצאו את שלוש התמונות ורשמו את הספרות לפי סדר האותיות: א׳, ב׳, ג׳.</p>' +
+        '<h1>משימה 4 — תמונות ומספרים</h1>' +
+        '<p>תמונות שלנו מפוזרות ברחבי המתחם.</p>' +
+        '<p>ליד ארבע מהן תמצאו אות וספרה. מצאו אותן ורשמו את הספרות לפי סדר האותיות: א׳, ב׳, ג׳, ד׳.</p>' +
         '<p>לא משנה באיזה סדר מצאתם אותן — מה שקובע הוא האות שליד כל תמונה.</p>' +
-        '<div class="digits">' + f(1, "תמונה א׳") + f(2, "תמונה ב׳") + f(3, "תמונה ג׳") + '</div>' +
+        '<div class="digits">' + f(1, "תמונה א׳") + f(2, "תמונה ב׳") + f(3, "תמונה ג׳") + f(4, "תמונה ד׳") + '</div>' +
         msg("fMsg") +
         '<button class="btn" id="fBtn" type="button">בדיקת הקוד</button>' +
       '</section>');
-    [1, 2, 3].forEach(function (i) {
+    [1, 2, 3, 4].forEach(function (i) {
       var el = $("d" + i);
       el.oninput = function () {
         this.value = this.value.replace(/[^0-9]/g, "").slice(-1);
-        S.digits = S.digits || ["", "", ""]; S.digits[i - 1] = this.value;
+        S.digits = S.digits || ["", "", "", ""]; S.digits[i - 1] = this.value;
         call("save_digit", { p_slot: i, p_digit: this.value }).catch(function () {});
-        if (this.value && i < 3) $("d" + (i + 1)).focus();
+        if (this.value && i < 4) $("d" + (i + 1)).focus();
       };
       el.onfocus = function () { this.select(); };
     });
     $("fBtn").onclick = function () {
-      var btn = this, vals = [1, 2, 3].map(function (i) { return $("d" + i).value; });
-      if (vals.some(function (v) { return v === ""; })) { setMsg("fMsg", "עדיין חסר מספר. מצאו את שלוש התמונות ומלאו את כל השדות.", "err"); return; }
+      var btn = this, vals = [1, 2, 3, 4].map(function (i) { return $("d" + i).value; });
+      if (vals.some(function (v) { return v === ""; })) { setMsg("fMsg", "עדיין חסר מספר. מצאו את התמונות ומלאו את כל השדות.", "err"); return; }
       btn.disabled = true; setMsg("fMsg", "בודקים…");
       call("submit_final", { p_digits: vals }).then(function (r) {
         if (r.ok) { S = r.state; render(); }
-        else { btn.disabled = false; setMsg("fMsg", "משהו עדיין לא מסתדר… בדקו את הספרות ואת הסדר א׳, ב׳, ג׳.", "err"); }
+        else { btn.disabled = false; setMsg("fMsg", "משהו עדיין לא מסתדר… בדקו את הספרות ואת הסדר א׳, ב׳, ג׳, ד׳.", "err"); }
       }).catch(function (e) { btn.disabled = false; handleErr(e, "fMsg"); });
     };
   }
 
   // ---------- מיקום התיבה ----------
   function renderBox(){
-    var where = (S.box_location && S.box_location.trim()) ? esc(S.box_location) : "(מיקום התיבה עדיין לא הוגדר)";
+    var where = (S.box_location && S.box_location.trim()) ? esc(S.box_location) : "(הרמז למיקום התיבה עדיין לא הוגדר)";
     show(
       '<section class="card">' +
         '<h1>האוצר קרוב מתמיד!</h1>' +
-        '<p>גשו ל־' + where + ' וחפשו את התיבה.</p>' +
+        '<p>' + where + '</p>' +
         '<p><strong>בהצלחה!</strong></p>' +
       '</section>');
+  }
+
+  // ---------- סיום המשחק ----------
+  var gameEnded = false, pollTimer = null, overDismissed = false;
+  function showEnded(g){
+    var me = S && g.winner_table != null && S.table_no === g.winner_table;
+    if (me) return;                                  // הקבוצה המנצחת רואה מסך משלה
+    var who = "שולחן " + g.winner_table + (g.winner_name ? " (" + esc(g.winner_name) + ")" : "");
+    var b = $("endBanner");
+    b.innerHTML = "המשחק נגמר! " + who + " מצאו את התיבה.";
+    b.classList.remove("hidden");
+    if (!overDismissed) {
+      var o = $("over");
+      o.innerHTML = '<div class="card"><h1>המשחק נגמר!</h1>' +
+        '<p>' + who + ' מצאו את התיבה ופתחו אותה.</p>' +
+        '<p>אין צורך להמשיך לחפש. תודה ששיחקתם, נתראה בחופה!</p>' +
+        '<button class="btn" id="overOk" type="button">הבנתי</button></div>';
+      o.classList.remove("hidden");
+      $("overOk").onclick = function () { overDismissed = true; o.classList.add("hidden"); o.innerHTML = ""; };
+    }
+  }
+  function checkGame(){
+    if (gameEnded || !BASE) return;
+    rpc("get_game_status", {}).then(function (g) {
+      if (g && g.ended) { gameEnded = true; clearInterval(pollTimer); showEnded(g); }
+    }).catch(function () {});
+  }
+  function startPolling(){
+    checkGame();
+    if (!pollTimer) pollTimer = setInterval(function () { if (!document.hidden) checkGame(); }, POLL_MS);
+  }
+
+  // ---------- סריקת הברקוד שבתוך התיבה ----------
+  function renderWinner(r){
+    var first = r.first || r.mine;
+    show(
+      '<section class="card">' +
+        (first
+          ? '<h1>כל הכבוד, ניצחתם!</h1><p>הקבוצה שלכם הייתה הראשונה לפתוח את התיבה. המשחק הסתיים, והפרס השווה במיוחד מחכה לכם.</p>'
+          : '<h1>כמעט!</h1><p>שולחן ' + esc(r.winner_table) + (r.winner_name ? ' (' + esc(r.winner_name) + ')' : '') + ' כבר פתחו את התיבה לפניכם. המשחק הסתיים, ותודה ששיחקתם!</p>') +
+      '</section>');
+  }
+  function winnerFlow(){
+    call("declare_winner", { p_code: WCODE }).then(function (r) {
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+      WCODE = ""; gameEnded = true; clearInterval(pollTimer);
+      return call("get_state", {}).then(function (st) { S = st; header(); renderWinner(r); });
+    }).catch(function (e) {
+      if (e && e.code === "unauthorized") { saveAuth(null); auth = null; S = null; view = null; render(); return; }
+      header();
+      if (e && e.code === "locked") show('<section class="card"><h1>עוד לא הגעתם לשלב הזה</h1><p>השלימו קודם את המשימות. את הברקוד הזה סורקים רק אחרי שפותחים את התיבה.</p><button class="btn" id="back" type="button">חזרה למשימה שלי</button></section>');
+      else if (e && e.code === "bad_code") show('<section class="card"><h1>הקוד לא תקין</h1><p>נסו לסרוק שוב את הברקוד שבתוך התיבה.</p></section>');
+      else show('<section class="card"><h1>אין חיבור</h1><p>בדקו את החיבור לאינטרנט ונסו לסרוק שוב.</p></section>');
+      var bk = $("back"); if (bk) bk.onclick = function () { WCODE = ""; try { history.replaceState(null, "", location.pathname); } catch (x) {} view = null; render(); };
+    });
   }
 
   // ---------- אתחול ----------
@@ -575,15 +638,17 @@
     show('<section class="card"><p class="muted">טוענים…</p></section>');
     auth = loadAuth();
     if (!auth) {
+      if (WCODE) { show('<section class="card"><h1>סורקים עם הטלפון של הקבוצה</h1><p>כדי לסגור את המשחק, סרקו את הברקוד עם אותו טלפון (ואותה אפליקציה) שבהם שיחקתם לאורך המשחק.</p></section>'); return; }
       if (SCAN) { renderNeedsStart(); return; }
-      view = null; render(); return;
+      view = null; render(); startPolling(); return;
     }
+    if (WCODE) { startPolling(); winnerFlow(); return; }
     var p = SCAN ? call("scan_siblings", {}) : call("get_state", {}).then(function (s) { return { state: s, status: "state" }; });
     p.then(function (r) {
       S = r.state;
       if (SCAN) { try { history.replaceState(null, "", location.pathname); } catch (e) {} SCAN = false; }
-      if (r.status === "too_early") { header(); renderTooEarly(); return; }
-      render();
+      if (r.status === "too_early") { header(); renderTooEarly(); startPolling(); return; }
+      render(); startPolling();
     }).catch(function (e) {
       if (e && e.code === "unauthorized") { saveAuth(null); auth = null; S = null; view = null; render(); return; }
       show('<section class="card"><h1>אין חיבור</h1><p>לא הצלחנו להתחבר לשרת. בדקו את החיבור לאינטרנט ונסו שוב.</p>' +
