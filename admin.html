@@ -56,7 +56,7 @@
 
     <div class="card">
       <h2>הגדרות המשחק</h2>
-      <label for="box">הרמז למיקום התיבה (הטקסט שמופיע לקבוצות שפתרו את הקוד)</label>
+      <label for="box">הרמז למיקום המטמון (מופיע רק לקבוצה שהזינה ראשונה את הקוד הסופי)</label>
       <input id="box" type="text" placeholder="הטקסט המלא של הרמז">
       <label for="closeup">נתיב תמונת התקריב (למשל: img/m3-7f2a.jpg)</label>
       <input id="closeup" type="text" placeholder="img/..." dir="ltr">
@@ -66,8 +66,7 @@
     <div class="card">
       <h2>סיום המשחק</h2>
       <p id="gameState" class="muted"></p>
-      <p>הקישור שבברקוד שבתוך התיבה (הקבוצה שפותחת את התיבה סורקת אותו, ושאר הקבוצות מקבלות התרעה שהמשחק נגמר):</p>
-      <input type="text" id="winLink" readonly dir="ltr" onclick="this.select()">
+      <p class="muted">המשחק נגמר אוטומטית כשקבוצה מזינה ראשונה את הקוד הסופי, ושאר הקבוצות מקבלות התרעה.</p>
       <div class="row" style="margin-top:12px"><button id="resetGame" type="button" class="alt">איפוס סיום המשחק (לבדיקות)</button><span id="resetMsg"></span></div>
     </div>
 
@@ -92,7 +91,7 @@
   var CFG = window.CONFIG || {};
   var BASE = (CFG.SUPABASE_URL || "").replace(/\/+$/, "");
   var password = "", data = {teams: [], photos: []};
-  var STAGES = ["משימה 1 (שאלון)", "משימה 2 (כתב קדום)", "מחפשים את האחים", "משימה 3 א׳ (זיהוי עמדה)", "משימה 3 ב׳ (תמונה וקוד)", "משימה 4 (שלוש תמונות)", "הגיעו לתיבה"];
+  var STAGES = ["משימה 1 (שאלון)", "משימה 2 (כתב קדום)", "מחפשים את האחים", "משימה 3 א׳ (זיהוי עמדה)", "משימה 3 ב׳ (תמונה וקוד)", "משימה 4 (ארבע תמונות)", "הקוד הסופי נכון (מטמון)"];
   function $(id){ return document.getElementById(id); }
   function esc(s){ var d=document.createElement("div"); d.textContent=(s==null?"":String(s)); return d.innerHTML; }
   function url(path){ return BASE + "/storage/v1/object/public/photos/" + path; }
@@ -116,8 +115,6 @@
       $("login").classList.add("hidden"); $("main").classList.remove("hidden");
       if (document.activeElement !== $("box")) $("box").value = st.box_location || "";
       if (document.activeElement !== $("closeup")) $("closeup").value = st.closeup_image || "";
-      var base = location.origin + location.pathname.replace(/[^\/]*$/, "");
-      $("winLink").value = st.winner_code ? base + "?w=" + st.winner_code : "";
       gameStatus();
       render();
     }).catch(function(e){ $("err").textContent = /unauthorized/.test(e.message) ? "סיסמה שגויה." : "שגיאה בטעינה: " + e.message; });
@@ -154,7 +151,7 @@
       return '<section class="card"><h2>שולחן ' + n + (by[n][0].team_name ? ' · ' + esc(by[n][0].team_name) : '') + '</h2><div class="grid">' +
         by[n].map(function(r){
           return '<figure><a href="'+esc(url(r.path))+'" target="_blank" rel="noopener"><img loading="lazy" src="'+esc(url(r.path))+'" alt=""></a>' +
-                 '<figcaption>'+fmt(r.created_at)+' · <a href="'+esc(url(r.path))+'" download>הורדה</a></figcaption></figure>';
+                 '<figcaption>'+(r.kind==='victory'?'🏆 תמונת ניצחון · ':'')+fmt(r.created_at)+' · <a href="'+esc(url(r.path))+'" download>הורדה</a></figcaption></figure>';
         }).join("") + '</div></section>';
     }).join("") || '<div class="card muted">עוד לא הועלו תמונות.</div>';
   }

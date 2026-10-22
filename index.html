@@ -101,8 +101,7 @@
   var KEY = CFG.SUPABASE_KEY || "";
   var app = document.getElementById("app");
   var SCAN = (new URLSearchParams(location.search).get("s") || "").toLowerCase() === "siblings";
-  var WCODE = new URLSearchParams(location.search).get("w") || "";
-  var POLL_MS = CFG.POLL_MS || 30000;
+  var POLL_MS = CFG.POLL_MS || 15000;
   var LS = "th_auth_v2";
 
   var auth = null;      // {table, token, upload_key}
@@ -563,30 +562,79 @@
     };
   }
 
-  // ---------- מיקום התיבה ----------
+  // ---------- המטמון: מסך הניצחון ----------
+  var gameEnded = false, pollTimer = null, overDismissed = false;
   function renderBox(){
-    var where = (S.box_location && S.box_location.trim()) ? esc(S.box_location) : "(הרמז למיקום התיבה עדיין לא הוגדר)";
+    var hasLoc = S.box_location !== undefined && S.box_location !== null;
+    if (!hasLoc) {
+      // קוד נכון, אבל קבוצה אחרת כבר הקדימה
+      show(
+        '<section class="card">' +
+          '<h1>כמעט!</h1>' +
+          '<p>הקוד שלכם נכון, אבל קבוצה אחרת הקדימה אתכם והמשחק כבר נגמר.</p>' +
+          '<p>תודה ששיחקתם, נתראה בחופה!</p>' +
+        '</section>');
+      checkGame();
+      return;
+    }
+    gameEnded = true; clearInterval(pollTimer);
     show(
       '<section class="card">' +
-        '<h1>האוצר קרוב מתמיד!</h1>' +
-        '<p>' + where + '</p>' +
-        '<p><strong>בהצלחה!</strong></p>' +
+        '<h1>מזל טוב, הצלחתם! 🎉</h1>' +
+        '<p><strong>הייתם הראשונים, והמשחק נגמר.</strong></p>' +
+        '<p>' + (S.box_location.trim() ? esc(S.box_location) : '(הרמז למיקום המטמון עדיין לא הוגדר)') + '</p>' +
+        '<p>מחכים לכם שם חולצות מיוחדות ועוד כמה דברים מתוקים. החולצות האלה לא הודפסו בכמויות. הן נועדו רק למשפחה ולחברים הכי קרובים, אז לבשו אותן בגאווה.</p>' +
+        '<h2>תמונת ניצחון</h2>' +
+        (S.victory_saved
+          ? '<p class="tick">✓ התמונה נשמרה, תודה!</p>'
+          : '<p>כשתגיעו למטמון, צלמו תמונת ניצחון עם הפרס והעלו אותה כאן.</p>' +
+            '<label class="btn alt" for="vfile">📷 צילום או העלאת תמונה</label>' +
+            '<input id="vfile" type="file" accept="image/*">' +
+            '<img id="vpv" class="preview hidden" alt="תצוגה מקדימה">' +
+            '<div class="progress hidden" id="vprog"><i id="vprogI"></i></div>' +
+            msg("vMsg") +
+            '<button class="btn hidden" id="vSend" type="button">שליחת התמונה</button>') +
+        '<p class="muted">נועם ויותם מודים לכם שהייתם חלק מהיום שלנו. ❤</p>' +
       '</section>');
+    if (S.victory_saved) return;
+    var vblob = null, vpath = null, busy = false;
+    $("vfile").onchange = function (e) {
+      var f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+      setMsg("vMsg", "מכווצים את התמונה…");
+      compress(f).then(function (b) {
+        vblob = b; vpath = null;
+        var pv = $("vpv"); pv.src = URL.createObjectURL(b); pv.classList.remove("hidden");
+        $("vSend").classList.remove("hidden"); setMsg("vMsg", "");
+      }).catch(function () { setMsg("vMsg", "לא הצלחנו לקרוא את התמונה. נסו תמונה אחרת.", "err"); });
+    };
+    $("vSend").onclick = function () {
+      if (busy || !vblob) return;
+      busy = true; $("vSend").disabled = true;
+      setMsg("vMsg", "מעלים את התמונה… השאירו את הדף פתוח עד שמופיע אישור.");
+      $("vprog").classList.remove("hidden"); $("vprogI").style.width = "0";
+      var p = vpath ? Promise.resolve() : (function () {
+        var path = auth.upload_key + "/" + Date.now() + "-" + rand() + ".jpg";
+        return uploadFile(path, vblob, function (x) { $("vprogI").style.width = Math.round(x * 100) + "%"; })
+          .then(function () { vpath = path; });
+      })();
+      p.then(function () { return call("register_victory_photo", { p_path: vpath }); })
+        .then(function (st) { S = st; render(); })
+        .catch(function () { busy = false; $("vSend").disabled = false; setMsg("vMsg", "התמונה לא נשמרה. בדקו את החיבור לאינטרנט ונסו שוב.", "err"); });
+    };
   }
 
-  // ---------- סיום המשחק ----------
-  var gameEnded = false, pollTimer = null, overDismissed = false;
+  // ---------- סיום המשחק: התראה לשאר הקבוצות ----------
   function showEnded(g){
     var me = S && g.winner_table != null && S.table_no === g.winner_table;
     if (me) return;                                  // הקבוצה המנצחת רואה מסך משלה
     var who = "שולחן " + g.winner_table + (g.winner_name ? " (" + esc(g.winner_name) + ")" : "");
     var b = $("endBanner");
-    b.innerHTML = "המשחק נגמר! " + who + " מצאו את התיבה.";
+    b.innerHTML = "המשחק נגמר! " + who + " מצאו את המטמון.";
     b.classList.remove("hidden");
     if (!overDismissed) {
       var o = $("over");
       o.innerHTML = '<div class="card"><h1>המשחק נגמר!</h1>' +
-        '<p>' + who + ' מצאו את התיבה ופתחו אותה.</p>' +
+        '<p>' + who + ' מצאו את המטמון והפרס נמצא.</p>' +
         '<p>אין צורך להמשיך לחפש. תודה ששיחקתם, נתראה בחופה!</p>' +
         '<button class="btn" id="overOk" type="button">הבנתי</button></div>';
       o.classList.remove("hidden");
@@ -604,31 +652,6 @@
     if (!pollTimer) pollTimer = setInterval(function () { if (!document.hidden) checkGame(); }, POLL_MS);
   }
 
-  // ---------- סריקת הברקוד שבתוך התיבה ----------
-  function renderWinner(r){
-    var first = r.first || r.mine;
-    show(
-      '<section class="card">' +
-        (first
-          ? '<h1>מזל טוב, הצלחתם! 🎉</h1><p>הייתם הראשונים לפתוח את התיבה, והמשחק נגמר.</p><p>מגיעות לכם חולצות מיוחדות ועוד כמה דברים מתוקים.</p><p>החולצות האלה לא הודפסו בכמויות. הן נועדו רק למשפחה ולחברים הכי קרובים, אז לבשו אותן בגאווה (ועל הממתקים תשמרו מהשולחנות השכנים).</p><p>נועם ויותם מודים לכם שהייתם חלק מהיום שלנו. ❤</p>'
-          : '<h1>כמעט!</h1><p>שולחן ' + esc(r.winner_table) + (r.winner_name ? ' (' + esc(r.winner_name) + ')' : '') + ' כבר פתחו את התיבה לפניכם. המשחק הסתיים, ותודה ששיחקתם!</p>') +
-      '</section>');
-  }
-  function winnerFlow(){
-    call("declare_winner", { p_code: WCODE }).then(function (r) {
-      try { history.replaceState(null, "", location.pathname); } catch (e) {}
-      WCODE = ""; gameEnded = true; clearInterval(pollTimer);
-      return call("get_state", {}).then(function (st) { S = st; header(); renderWinner(r); });
-    }).catch(function (e) {
-      if (e && e.code === "unauthorized") { saveAuth(null); auth = null; S = null; view = null; render(); return; }
-      header();
-      if (e && e.code === "locked") show('<section class="card"><h1>עוד לא הגעתם לשלב הזה</h1><p>השלימו קודם את המשימות. את הברקוד הזה סורקים רק אחרי שפותחים את התיבה.</p><button class="btn" id="back" type="button">חזרה למשימה שלי</button></section>');
-      else if (e && e.code === "bad_code") show('<section class="card"><h1>הקוד לא תקין</h1><p>נסו לסרוק שוב את הברקוד שבתוך התיבה.</p></section>');
-      else show('<section class="card"><h1>אין חיבור</h1><p>בדקו את החיבור לאינטרנט ונסו לסרוק שוב.</p></section>');
-      var bk = $("back"); if (bk) bk.onclick = function () { WCODE = ""; try { history.replaceState(null, "", location.pathname); } catch (x) {} view = null; render(); };
-    });
-  }
-
   // ---------- אתחול ----------
   function start(){
     if (!BASE || !KEY) {
@@ -638,11 +661,9 @@
     show('<section class="card"><p class="muted">טוענים…</p></section>');
     auth = loadAuth();
     if (!auth) {
-      if (WCODE) { show('<section class="card"><h1>סורקים עם הטלפון של הקבוצה</h1><p>האתר לא מזהה את הקבוצה שלכם בדפדפן הזה. פתחו את הברקוד שוב עם אותו טלפון, ובאותה אפליקציה (למשל סאפרי או כרום) שבהם שיחקתם לאורך המשחק.</p></section>'); return; }
       if (SCAN) { renderNeedsStart(); return; }
       view = null; render(); startPolling(); return;
     }
-    if (WCODE) { startPolling(); winnerFlow(); return; }
     var p = SCAN ? call("scan_siblings", {}) : call("get_state", {}).then(function (s) { return { state: s, status: "state" }; });
     p.then(function (r) {
       S = r.state;
