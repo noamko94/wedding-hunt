@@ -343,6 +343,8 @@
       '<section class="card">' +
         '<h1>פענחתם!</h1>' +
         '<p>התחנה הבאה שלכם היא הבר הפנימי.</p>' +
+        '<h2>הידעתם?</h2>' +
+        '<p>נועם היא ארכאולוגית שחוקרת את עולם האלכוהול הקדום. אז הבר הוא בהחלט המקום המתאים להמשיך ממנו.</p>' +
         '<button class="btn" id="go" type="button">למשימה בבר הפנימי</button>' +
       '</section>');
     $("go").onclick = function () { view = null; render(); };
@@ -583,18 +585,17 @@
         '<h1>מזל טוב, הצלחתם! 🎉</h1>' +
         '<p><strong>הייתם הראשונים, והמשחק נגמר.</strong></p>' +
         '<p>' + (S.box_location.trim() ? esc(S.box_location) : '(הרמז למיקום המטמון עדיין לא הוגדר)') + '</p>' +
-        '<p>מחכים לכם שם חולצות מיוחדות ועוד כמה דברים מתוקים. החולצות האלה לא הודפסו בכמויות. הן נועדו רק למשפחה ולחברים הכי קרובים, אז לבשו אותן בגאווה.</p>' +
         '<h2>תמונת ניצחון</h2>' +
         (S.victory_saved
           ? '<p class="tick">✓ התמונה נשמרה, תודה!</p>'
-          : '<p>כשתגיעו למטמון, צלמו תמונת ניצחון עם הפרס והעלו אותה כאן.</p>' +
+          : '<p>כשתגיעו למטמון, צלמו תמונת ניצחון עם המטמון והעלו אותה כאן.</p>' +
             '<label class="btn alt" for="vfile">📷 צילום או העלאת תמונה</label>' +
             '<input id="vfile" type="file" accept="image/*">' +
             '<img id="vpv" class="preview hidden" alt="תצוגה מקדימה">' +
             '<div class="progress hidden" id="vprog"><i id="vprogI"></i></div>' +
             msg("vMsg") +
             '<button class="btn hidden" id="vSend" type="button">שליחת התמונה</button>') +
-        '<p class="muted">נועם ויותם מודים לכם שהייתם חלק מהיום שלנו. ❤</p>' +
+        '<p class="muted">תודה שהשתתפתם במשחק שלנו. נהנינו להכין אותו, ואנחנו שמחים שאתם נהנים ממנו כאן בחתונה שלנו. ❤</p>' +
       '</section>');
     if (S.victory_saved) return;
     var vblob = null, vpath = null, busy = false;
@@ -634,7 +635,7 @@
     if (!overDismissed) {
       var o = $("over");
       o.innerHTML = '<div class="card"><h1>המשחק נגמר!</h1>' +
-        '<p>' + who + ' מצאו את המטמון והפרס נמצא.</p>' +
+        '<p>' + who + ' מצאו את המטמון.</p>' +
         '<p>אין צורך להמשיך לחפש. תודה ששיחקתם, נתראה בחופה!</p>' +
         '<button class="btn" id="overOk" type="button">הבנתי</button></div>';
       o.classList.remove("hidden");
