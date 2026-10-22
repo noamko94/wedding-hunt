@@ -628,15 +628,17 @@
   function showEnded(g){
     var me = S && g.winner_table != null && S.table_no === g.winner_table;
     if (me) return;                                  // הקבוצה המנצחת רואה מסך משלה
-    var who = "שולחן " + g.winner_table + (g.winner_name ? " (" + esc(g.winner_name) + ")" : "");
+    var who = "שולחן מספר " + esc(g.winner_table);
     var b = $("endBanner");
-    b.innerHTML = "המשחק נגמר! " + who + " מצאו את המטמון.";
+    b.innerHTML = "המשחק נגמר! " + who + " סיים את כל המשימות והגיע למטמון.";
     b.classList.remove("hidden");
     if (!overDismissed) {
       var o = $("over");
-      o.innerHTML = '<div class="card"><h1>המשחק נגמר!</h1>' +
-        '<p>' + who + ' מצאו את המטמון.</p>' +
-        '<p>אין צורך להמשיך לחפש. תודה ששיחקתם, נתראה בחופה!</p>' +
+      o.innerHTML = '<div class="card"><h1>עצרו את החיפושים!</h1>' +
+        '<p><strong>המשחק נגמר.</strong></p>' +
+        '<p>' + who + ' סיים את כל המשימות והגיע למטמון.</p>' +
+        '<p>תודה רבה ששיחקתם במשחק שכל כך נהנינו להכין, ואנחנו כל כך שמחים שכעת אתם שותפים לשמחה שלנו.</p>' +
+        '<p>אוהבים, נועם ויותם ❤</p>' +
         '<button class="btn" id="overOk" type="button">הבנתי</button></div>';
       o.classList.remove("hidden");
       $("overOk").onclick = function () { overDismissed = true; o.classList.add("hidden"); o.innerHTML = ""; };
